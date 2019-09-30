@@ -22,39 +22,50 @@ function check_number() {
 	fi
 }
 
-if [ "$APPLICATION_TYPE" = "compliance-backend" ]; then
-	check_number PUMA_WORKERS     "${PUMA_WORKERS:-0}"
-	check_number PUMA_MIN_THREADS "${PUMA_MIN_THREADS:-0}"
-	check_number PUMA_MAX_THREADS "${PUMA_MAX_THREADS:-0}"
+case "$APPLICATION_TYPE" in
 
-	export RACK_ENV=${RACK_ENV:-"production"}
+	"compliance-backend")
+		check_number PUMA_WORKERS     "${PUMA_WORKERS:-0}"
+		check_number PUMA_MIN_THREADS "${PUMA_MIN_THREADS:-0}"
+		check_number PUMA_MAX_THREADS "${PUMA_MAX_THREADS:-0}"
 
-	if is_puma_installed; then
-		export_vars=$(cgroup-limits) ; export $export_vars
+		export RACK_ENV=${RACK_ENV:-"production"}
 
-		exec bundle exec "puma --config ../etc/puma.cfg"
-	else
-		echo "You might consider adding 'puma' into your Gemfile."
+		if is_puma_installed; then
+			export_vars=$(cgroup-limits) ; export $export_vars
 
-		if bundle exec rackup -h &>/dev/null; then
-			if [ -f Gemfile ]; then
-				exec bundle exec "rackup -E ${RAILS_ENV:-$RACK_ENV} -P /tmp/rack.pid --host 0.0.0.0 --port 8080"
-			else
-				exec rackup -E "${RAILS_ENV:-$RACK_ENV}" -P /tmp/rack.pid --host 0.0.0.0 --port 8080
-			fi
+			exec bundle exec "puma --config ../etc/puma.cfg"
 		else
-			echo "ERROR: Rubygem Rack is not installed in the present image."
-			echo "       Add rack to your Gemfile in order to start the web server."
+			echo "You might consider adding 'puma' into your Gemfile."
+
+			if bundle exec rackup -h &>/dev/null; then
+				if [ -f Gemfile ]; then
+					exec bundle exec "rackup -E ${RAILS_ENV:-$RACK_ENV} -P /tmp/rack.pid --host 0.0.0.0 --port 8080"
+				else
+					exec rackup -E "${RAILS_ENV:-$RACK_ENV}" -P /tmp/rack.pid --host 0.0.0.0 --port 8080
+				fi
+			else
+				echo "ERROR: Rubygem Rack is not installed in the present image."
+				echo "       Add rack to your Gemfile in order to start the web server."
+			fi
 		fi
-	fi
-elif [ "$APPLICATION_TYPE" = "compliance-consumer" ]; then
-	exec bundle exec racecar ComplianceReportsConsumer
-elif [ "$APPLICATION_TYPE" = "compliance-inventory" ]; then
-	exec bundle exec racecar InventoryEventsConsumer
-elif [ "$APPLICATION_TYPE" = "compliance-sidekiq" ]; then
-	exec bundle exec sidekiq
-elif [ "$APPLICATION_TYPE" = "compliance-prometheus-exporter" ]; then
-	exec bundle exec prometheus_exporter -a lib/graphql_collector.rb --prefix compliance_
-elif [ "$APPLICATION_TYPE" = "compliance-import-remediations" ]; then
-	exec bundle exec rake import_remediations
-fi
+		;;
+	"compliance-consumer")
+		exec bundle exec racecar ComplianceReportsConsumer
+		;;
+	"compliance-inventory")
+		exec bundle exec racecar InventoryEventsConsumer
+		;;
+	"compliance-sidekiq")
+		exec bundle exec sidekiq
+		;;
+	"compliance-prometheus-exporter")
+		exec bundle exec prometheus_exporter -a lib/graphql_collector.rb --prefix compliance_
+		;;
+	"compliance-import-remediations")
+		exec bundle exec rake import_remediations
+		;;
+	"test")
+		exec cat
+
+esac
